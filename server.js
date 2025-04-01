@@ -8,5 +8,5 @@ app.use(express.json());
 app.use('/api/products', productsRouter);
 app.use('/api/carts', cartsRouter);
 
-const PORT = 3030;
+const PORT = 8080;
 app.listen(PORT, () => console.log(`Servidor en http://localhost:${PORT}`));
