@@ -19,4 +19,13 @@ router.post('/:cid/product/:pid', async (req, res) => {
     updatedCart ? res.json(updatedCart) : res.status(404).json({ error: "Carrito no encontrado" });
 });
 
+router.delete("/:cid", async (req, res) => {
+    const cartId = parseInt(req.params.cid);
+    const result = await cm.deleteCart(cartId);
+    if (result.error) {
+      return res.status(404).json(result);
+    }
+    res.json(result);
+  });
+
 module.exports = router;
