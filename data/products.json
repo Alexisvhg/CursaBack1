@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "title": "aa",
+    "description": "dd",
+    "code": "333",
+    "price": "12",
+    "stock": "3",
+    "category": "fg",
+    "id": 1
+  },
+  {
+    "title": "A-TEST",
+    "description": "B-TEST",
+    "code": "123",
+    "price": "456",
+    "stock": "789",
+    "category": "C-TEST",
+    "id": 2
+  }
+]
