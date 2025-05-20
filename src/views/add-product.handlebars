@@ -1,0 +1,131 @@
+<div class="container mt-4">
+    <h1>Agregar Nuevo Producto</h1>
+    
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <form id="addProductForm" class="needs-validation" novalidate>
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Título</label>
+                            <input type="text" class="form-control" id="title" name="title" required>
+                            <div class="invalid-feedback">
+                                Por favor ingrese un título
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descripción</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
+                            <div class="invalid-feedback">
+                                Por favor ingrese una descripción
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="price" class="form-label">Precio</label>
+                            <input type="number" class="form-control" id="price" name="price" min="0" step="0.01" required>
+                            <div class="invalid-feedback">
+                                Por favor ingrese un precio válido
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="thumbnail" class="form-label">URL de la imagen</label>
+                            <input type="url" class="form-control" id="thumbnail" name="thumbnail" required>
+                            <div class="invalid-feedback">
+                                Por favor ingrese una URL válida
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="code" class="form-label">Código</label>
+                            <input type="text" class="form-control" id="code" name="code" required>
+                            <div class="invalid-feedback">
+                                Por favor ingrese un código
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="stock" class="form-label">Stock</label>
+                            <input type="number" class="form-control" id="stock" name="stock" min="0" required>
+                            <div class="invalid-feedback">
+                                Por favor ingrese un stock válido
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="category" class="form-label">Categoría</label>
+                            <select class="form-select" id="category" name="category" required>
+                                <option value="">Seleccione una categoría</option>
+                                <option value="electronics">Electrónicos</option>
+                                <option value="clothing">Ropa</option>
+                                <option value="books">Libros</option>
+                            </select>
+                            <div class="invalid-feedback">
+                                Por favor seleccione una categoría
+                            </div>
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="status" name="status" checked>
+                            <label class="form-check-label" for="status">Producto activo</label>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Agregar Producto</button>
+                            <a href="/products" class="btn btn-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Form validation and submission
+    document.getElementById('addProductForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        if (!this.checkValidity()) {
+            e.stopPropagation();
+            this.classList.add('was-validated');
+            return;
+        }
+
+        const formData = new FormData(this);
+        const productData = {
+            title: formData.get('title'),
+            description: formData.get('description'),
+            price: parseFloat(formData.get('price')),
+            thumbnail: formData.get('thumbnail'),
+            code: formData.get('code'),
+            stock: parseInt(formData.get('stock')),
+            category: formData.get('category'),
+            status: formData.get('status') === 'on'
+        };
+
+        try {
+            const response = await fetch('/api/products', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(productData)
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                alert('Producto agregado exitosamente');
+                window.location.href = '/products';
+            } else {
+                alert('Error al agregar el producto: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al agregar el producto');
+        }
+    });
+</script> 

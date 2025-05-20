@@ -1,16 +1,189 @@
 const express = require("express");
 const router = express.Router();
-const ProductManager = require("../managers/productManager");
-const productManager = new ProductManager("../data/products.json");
+const Product = require('../models/product.model');
+const Cart = require('../models/cart.model');
 
-router.get("/home", async (req, res) => {
-  const productos = await productManager.getProducts();
-  res.render("home", { productos });
+// Home page
+router.get('/', async (req, res) => {
+    res.redirect('/products');
 });
 
-router.get("/realtimeproducts", async (req, res) => {
-  const productos = await productManager.getProducts();
-  res.render("realTimeProducts", { productos });
+// Products page with pagination
+router.get('/products', async (req, res) => {
+    try {
+        console.log('Accediendo a la ruta /products');
+        
+        // Verificar la conexión a MongoDB
+        if (!Product.db.readyState) {
+            throw new Error('No hay conexión a la base de datos');
+        }
+
+        // Buscar el último carrito no completado
+        let cart = await Cart.findOne({ completed: false }).sort({ cartId: -1 });
+        
+        // Si no existe un carrito activo, crear uno nuevo
+        if (!cart) {
+            console.log('Creando nuevo carrito activo...');
+            try {
+                cart = new Cart({ completed: false });
+                await cart.save();
+                console.log('Nuevo carrito activo creado:', { cartId: cart.cartId, _id: cart._id });
+            } catch (error) {
+                console.error('Error al crear el carrito activo:', error);
+                throw new Error('Error al crear el carrito activo: ' + error.message);
+            }
+        }
+
+        // Verificar que el carrito tenga un ID válido
+        if (!cart || !cart.cartId) {
+            throw new Error('Error: No se pudo obtener o crear un carrito válido');
+        }
+
+        console.log('ID del carrito activo:', cart.cartId);
+
+        const { limit = 10, page = 1, sort, category, status } = req.query;
+        console.log('Parámetros de consulta:', { limit, page, sort, category, status });
+        
+        const options = {
+            limit: parseInt(limit),
+            page: parseInt(page),
+            sort: sort ? { price: sort === 'asc' ? 1 : -1 } : undefined,
+            lean: true
+        };
+
+        const query = {};
+        if (category) query.category = category;
+        if (status !== undefined) query.status = status === 'true';
+
+        console.log('Ejecutando consulta de productos con query:', query);
+        const products = await Product.find(query)
+            .sort(options.sort)
+            .limit(options.limit)
+            .skip((options.page - 1) * options.limit)
+            .lean();
+
+        console.log(`Productos encontrados: ${products.length}`);
+
+        const totalProducts = await Product.countDocuments(query);
+        const totalPages = Math.ceil(totalProducts / options.limit);
+
+        const result = {
+            status: 'success',
+            payload: products.map(product => ({
+                ...product,
+                _id: product._id.toString()
+            })),
+            totalPages,
+            prevPage: options.page > 1 ? options.page - 1 : null,
+            nextPage: options.page < totalPages ? options.page + 1 : null,
+            page: options.page,
+            hasPrevPage: options.page > 1,
+            hasNextPage: options.page < totalPages,
+            prevLink: options.page > 1 ? `?page=${options.page - 1}&limit=${options.limit}${sort ? `&sort=${sort}` : ''}${category ? `&category=${category}` : ''}${status !== undefined ? `&status=${status}` : ''}` : null,
+            nextLink: options.page < totalPages ? `?page=${options.page + 1}&limit=${options.limit}${sort ? `&sort=${sort}` : ''}${category ? `&category=${category}` : ''}${status !== undefined ? `&status=${status}` : ''}` : null,
+            cartId: cart.cartId
+        };
+
+        console.log('Renderizando vista products con datos:', {
+            totalProducts: result.payload.length,
+            totalPages: result.totalPages,
+            currentPage: result.page,
+            cartId: result.cartId
+        });
+
+        res.render('products', result);
+    } catch (error) {
+        console.error('Error en la ruta /products:', error);
+        res.status(500).render('error', { 
+            error: `Error al cargar los productos: ${error.message}` 
+        });
+    }
+});
+
+// Add product form
+router.get('/products/add', (req, res) => {
+    res.render('add-product');
+});
+
+// Product detail page
+router.get('/products/:pid', async (req, res) => {
+    try {
+        // Obtener el carrito actual
+        let cart = await Cart.findOne().sort({ cartId: -1 });
+        if (!cart) {
+            cart = new Cart();
+            await cart.save();
+        }
+
+        const product = await Product.findById(req.params.pid).lean();
+        if (!product) {
+            return res.status(404).render('error', { error: 'Producto no encontrado' });
+        }
+
+        res.render('product-detail', { 
+            product: {
+                ...product,
+                _id: product._id.toString()
+            },
+            cartId: cart.cartId
+        });
+    } catch (error) {
+        console.error('Error en la ruta /products/:pid:', error);
+        res.status(500).render('error', { error: error.message });
+    }
+});
+
+// Cart page
+router.get('/carts/:cid', async (req, res) => {
+    try {
+        const cartId = parseInt(req.params.cid);
+        console.log('Buscando carrito con ID:', cartId);
+
+        // Buscar el carrito y poblar los productos
+        const cart = await Cart.findOne({ cartId })
+            .populate({
+                path: 'products.product',
+                model: 'Product'
+            });
+
+        if (!cart) {
+            console.log('Carrito no encontrado');
+            return res.status(404).render('error', { error: 'Carrito no encontrado' });
+        }
+
+        console.log('Carrito encontrado:', {
+            cartId: cart.cartId,
+            productsCount: cart.products.length,
+            products: cart.products.map(p => ({
+                productId: p.product._id,
+                quantity: p.quantity
+            }))
+        });
+
+        // Asegurarnos de que los productos estén correctamente poblados
+        const populatedProducts = cart.products.map(item => ({
+            product: {
+                _id: item.product._id.toString(),
+                title: item.product.title,
+                description: item.product.description,
+                price: item.product.price,
+                thumbnail: item.product.thumbnail,
+                category: item.product.category,
+                stock: item.product.stock
+            },
+            quantity: item.quantity
+        }));
+
+        res.render('cart', { 
+            payload: {
+                cartId: cart.cartId,
+                products: populatedProducts
+            }
+        });
+    } catch (error) {
+        console.error('Error en la ruta /carts/:cid:', error);
+        res.status(500).render('error', { error: error.message });
+    }
 });
 
 module.exports = router;

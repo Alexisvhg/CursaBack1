@@ -1,40 +1,94 @@
-const fs = require('fs');
-const path = './data/products.json';
+const Product = require('../models/product.model');
 
 class ProductManager {
-    constructor() {
-        this.path = path;
-    }
+    async getProducts(query = {}, options = {}) {
+        const {
+            limit = 10,
+            page = 1,
+            sort,
+            category,
+            status
+        } = options;
 
-    async getProducts() {
-        if (!fs.existsSync(this.path)) return [];
-        const data = await fs.promises.readFile(this.path, 'utf-8');
-        return JSON.parse(data);
+        // Build query
+        const filter = {};
+        if (category) filter.category = category;
+        if (status !== undefined) filter.status = status;
+
+        // Build sort options
+        const sortOptions = {};
+        if (sort) {
+            sortOptions.price = sort === 'asc' ? 1 : -1;
+        }
+
+        try {
+            const products = await Product.find(filter)
+                .sort(sortOptions)
+                .limit(limit)
+                .skip((page - 1) * limit);
+
+            const totalProducts = await Product.countDocuments(filter);
+            const totalPages = Math.ceil(totalProducts / limit);
+
+            return {
+                status: 'success',
+                payload: products,
+                totalPages,
+                prevPage: page > 1 ? page - 1 : null,
+                nextPage: page < totalPages ? page + 1 : null,
+                page: parseInt(page),
+                hasPrevPage: page > 1,
+                hasNextPage: page < totalPages,
+                prevLink: page > 1 ? `?page=${page - 1}&limit=${limit}${sort ? `&sort=${sort}` : ''}${category ? `&category=${category}` : ''}${status !== undefined ? `&status=${status}` : ''}` : null,
+                nextLink: page < totalPages ? `?page=${page + 1}&limit=${limit}${sort ? `&sort=${sort}` : ''}${category ? `&category=${category}` : ''}${status !== undefined ? `&status=${status}` : ''}` : null
+            };
+        } catch (error) {
+            return {
+                status: 'error',
+                error: error.message
+            };
+        }
     }
 
     async getProductById(id) {
-        const products = await this.getProducts();
-        return products.find(prod => prod.id === id);
+        try {
+            const product = await Product.findById(id);
+            return product;
+        } catch (error) {
+            throw new Error('Product not found');
+        }
     }
 
     async addProduct(product) {
-        const products = await this.getProducts();
-        product.id = products.length ? products[products.length - 1].id + 1 : 1;
-        products.push(product);
-        await fs.promises.writeFile(this.path, JSON.stringify(products, null, 2));
-        return product;
+        try {
+            const newProduct = new Product(product);
+            await newProduct.save();
+            return newProduct;
+        } catch (error) {
+            throw new Error(error.message);
+        }
     }
 
     async updateProduct(id, updatedFields) {
-        let products = await this.getProducts();
-        products = products.map(prod => (prod.id === id ? { ...prod, ...updatedFields } : prod));
-        await fs.promises.writeFile(this.path, JSON.stringify(products, null, 2));
+        try {
+            const product = await Product.findByIdAndUpdate(
+                id,
+                updatedFields,
+                { new: true }
+            );
+            return product;
+        } catch (error) {
+            throw new Error('Error updating product');
+        }
     }
 
     async deleteProduct(id) {
-        const products = await this.getProducts();
-        const filteredProducts = products.filter(prod => prod.id !== id);
-        await fs.promises.writeFile(this.path, JSON.stringify(filteredProducts, null, 2));
+        try {
+            await Product.findByIdAndDelete(id);
+            return true;
+        } catch (error) {
+            throw new Error('Error deleting product');
+        }
     }
 }
 

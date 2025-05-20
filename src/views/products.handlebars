@@ -1,0 +1,145 @@
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Productos</h1>
+        <a href="/products/add" class="btn btn-success">
+            <i class="fas fa-plus"></i> Agregar Producto
+        </a>
+    </div>
+    
+    <!-- Filtros y ordenamiento -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <form id="filterForm" class="d-flex gap-2">
+                <select name="category" class="form-select">
+                    <option value="">Todas las categorías</option>
+                    <option value="electronics">Electrónicos</option>
+                    <option value="clothing">Ropa</option>
+                    <option value="books">Libros</option>
+                </select>
+                <select name="sort" class="form-select">
+                    <option value="">Ordenar por precio</option>
+                    <option value="asc">Menor a mayor</option>
+                    <option value="desc">Mayor a menor</option>
+                </select>
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de productos -->
+    <div class="row" id="productsList">
+        {{#if payload}}
+            {{#each payload}}
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <img src="{{this.thumbnail}}" class="card-img-top" alt="{{this.title}}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{this.title}}</h5>
+                        <p class="card-text">{{this.description}}</p>
+                        <p class="card-text"><strong>Precio: ${{this.price}}</strong></p>
+                        <p class="card-text">Categoría: {{this.category}}</p>
+                        <div class="d-flex justify-content-between">
+                            <a href="/products/{{this._id}}" class="btn btn-info">Ver detalles</a>
+                            <button onclick="addToCart('{{this._id}}')" class="btn btn-primary">Agregar al carrito</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{/each}}
+        {{else}}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    No hay productos disponibles en este momento.
+                </div>
+            </div>
+        {{/if}}
+    </div>
+
+    <!-- Paginación -->
+    {{#if totalPages}}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {{#if hasPrevPage}}
+                    <li class="page-item">
+                        <a class="page-link" href="{{prevLink}}">Anterior</a>
+                    </li>
+                    {{/if}}
+                    
+                    <li class="page-item active">
+                        <span class="page-link">Página {{page}} de {{totalPages}}</span>
+                    </li>
+                    
+                    {{#if hasNextPage}}
+                    <li class="page-item">
+                        <a class="page-link" href="{{nextLink}}">Siguiente</a>
+                    </li>
+                    {{/if}}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {{/if}}
+</div>
+
+<script>
+    // Asegurarnos de que el ID del carrito sea válido
+    let defaultCartId = '{{cartId}}';
+    console.log('ID del carrito recibido:', defaultCartId);
+
+    // Actualizar el enlace del carrito en la navegación
+    document.addEventListener('DOMContentLoaded', () => {
+        const cartLink = document.querySelector('a[href^="/carts/"]');
+        if (cartLink && defaultCartId) {
+            cartLink.href = `/carts/${defaultCartId}`;
+            console.log('Enlace del carrito actualizado:', cartLink.href);
+        }
+    });
+
+    // Función para agregar al carrito
+    async function addToCart(productId) {
+        try {
+            const response = await fetch(`/api/carts/{{cartId}}/products/${productId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ quantity: 1 })
+            });
+
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                alert('Producto agregado al carrito');
+            } else {
+                alert('Error al agregar el producto: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al agregar el producto');
+        }
+    }
+
+    // Manejar filtros
+    document.getElementById('filterForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const params = new URLSearchParams();
+        
+        for (let [key, value] of formData.entries()) {
+            if (value) params.append(key, value);
+        }
+        
+        window.location.href = '/products?' + params.toString();
+    });
+
+    // Verificar el ID del carrito al cargar la página
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!defaultCartId || defaultCartId === 'undefined') {
+            console.error('Error: No se recibió un ID de carrito válido');
+        } else {
+            console.log('ID del carrito inicializado correctamente:', defaultCartId);
+        }
+    });
+</script> 
