@@ -24,9 +24,39 @@
 </div>
 
 <script>
+    let activeCartId = null;
+
+    // Obtener el carrito activo al cargar la página
+    async function getActiveCart() {
+        try {
+            const response = await fetch('/api/carts/active');
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                activeCartId = data.payload.cartId;
+                console.log('Carrito activo obtenido:', activeCartId);
+                
+                // Actualizar el enlace del carrito en la navegación
+                const cartLink = document.querySelector('a[href^="/carts/"]');
+                if (cartLink) {
+                    cartLink.href = `/carts/${activeCartId}`;
+                    console.log('Enlace del carrito actualizado:', cartLink.href);
+                }
+            } else {
+                console.error('Error al obtener carrito activo:', data.error);
+            }
+        } catch (error) {
+            console.error('Error al obtener carrito activo:', error);
+        }
+    }
+
     async function addToCart(productId) {
         try {
-            const response = await fetch(`/api/carts/{{cartId}}/products/${productId}`, {
+            if (!activeCartId) {
+                await getActiveCart();
+            }
+
+            const response = await fetch(`/api/carts/${activeCartId}/products/${productId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -46,4 +76,7 @@
             alert('Error al agregar el producto');
         }
     }
+
+    // Inicializar al cargar la página
+    document.addEventListener('DOMContentLoaded', getActiveCart);
 </script> 

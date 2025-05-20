@@ -18,20 +18,20 @@ router.get('/products', async (req, res) => {
             throw new Error('No hay conexión a la base de datos');
         }
 
-        // Buscar el último carrito no completado
-        let cart = await Cart.findOne({ completed: false }).sort({ cartId: -1 });
+        // Obtener el cartId más alto
+        const lastCart = await Cart.findOne().sort({ cartId: -1 });
         
-        // Si no existe un carrito activo, crear uno nuevo
-        if (!cart) {
+        let cart;
+        if (!lastCart || lastCart.completed) {
+            // Si no hay carritos o el último está completado, crear uno nuevo
             console.log('Creando nuevo carrito activo...');
-            try {
-                cart = new Cart({ completed: false });
-                await cart.save();
-                console.log('Nuevo carrito activo creado:', { cartId: cart.cartId, _id: cart._id });
-            } catch (error) {
-                console.error('Error al crear el carrito activo:', error);
-                throw new Error('Error al crear el carrito activo: ' + error.message);
-            }
+            cart = new Cart({ completed: false });
+            await cart.save();
+            console.log('Nuevo carrito activo creado:', { cartId: cart.cartId, _id: cart._id });
+        } else {
+            // Usar el último carrito si no está completado
+            cart = lastCart;
+            console.log('Usando carrito activo existente:', { cartId: cart.cartId, _id: cart._id });
         }
 
         // Verificar que el carrito tenga un ID válido
@@ -136,22 +136,22 @@ router.get('/products/:pid', async (req, res) => {
 // Cart page
 router.get('/carts/:cid', async (req, res) => {
     try {
-        const cartId = parseInt(req.params.cid);
-        console.log('Buscando carrito con ID:', cartId);
-
-        // Buscar el carrito y poblar los productos
-        const cart = await Cart.findOne({ cartId })
+        // Buscar el carrito activo más reciente
+        const cart = await Cart.findOne({ completed: false }).sort({ cartId: -1 })
             .populate({
                 path: 'products.product',
                 model: 'Product'
             });
 
         if (!cart) {
-            console.log('Carrito no encontrado');
-            return res.status(404).render('error', { error: 'Carrito no encontrado' });
+            console.log('No hay carrito activo, creando uno nuevo...');
+            // Crear un nuevo carrito si no hay ninguno activo
+            const newCart = new Cart({ completed: false });
+            await newCart.save();
+            return res.redirect(`/carts/${newCart.cartId}`);
         }
 
-        console.log('Carrito encontrado:', {
+        console.log('Carrito activo encontrado:', {
             cartId: cart.cartId,
             productsCount: cart.products.length,
             products: cart.products.map(p => ({

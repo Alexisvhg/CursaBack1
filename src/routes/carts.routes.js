@@ -3,6 +3,33 @@ const router = express.Router();
 const Cart = require('../models/cart.model');
 const Product = require('../models/product.model');
 
+// Middleware para obtener el carrito activo
+async function getActiveCart(req, res, next) {
+    try {
+        // Obtener el cartId más alto
+        const lastCart = await Cart.findOne().sort({ cartId: -1 });
+        
+        let cart;
+        if (!lastCart || lastCart.completed) {
+            // Si no hay carritos o el último está completado, crear uno nuevo
+            console.log('Creando nuevo carrito activo...');
+            cart = new Cart({ completed: false });
+            await cart.save();
+            console.log('Nuevo carrito activo creado:', { cartId: cart.cartId, _id: cart._id });
+        } else {
+            // Usar el último carrito si no está completado
+            cart = lastCart;
+            console.log('Usando carrito activo existente:', { cartId: cart.cartId, _id: cart._id });
+        }
+        
+        req.activeCart = cart;
+        next();
+    } catch (error) {
+        console.error('Error al obtener carrito activo:', error);
+        res.status(500).json({ status: 'error', error: error.message });
+    }
+}
+
 // Get first cart or create new one
 router.get('/', async (req, res) => {
     try {
@@ -71,14 +98,45 @@ router.post('/', async (req, res) => {
     }
 });
 
+// Get active cart
+router.get('/active', async (req, res) => {
+    try {
+        // Obtener el carrito activo más reciente
+        const lastCart = await Cart.findOne().sort({ cartId: -1 });
+        let cart;
+        
+        if (!lastCart || lastCart.completed) {
+            // Si no hay carritos o el último está completado, crear uno nuevo
+            console.log('Creando nuevo carrito activo...');
+            cart = new Cart({ completed: false });
+            await cart.save();
+            console.log('Nuevo carrito activo creado:', { cartId: cart.cartId, _id: cart._id });
+        } else {
+            // Usar el último carrito si no está completado
+            cart = lastCart;
+            console.log('Usando carrito activo existente:', { cartId: cart.cartId, _id: cart._id });
+        }
+            
+        res.json({ 
+            status: 'success', 
+            payload: {
+                cartId: cart.cartId,
+                products: cart.products
+            }
+        });
+    } catch (error) {
+        console.error('Error al obtener carrito activo:', error);
+        res.status(500).json({ status: 'error', error: error.message });
+    }
+});
+
 // Add product to cart
 router.post('/:cid/products/:pid', async (req, res) => {
     try {
-        const cartId = parseInt(req.params.cid);
         const { pid } = req.params;
         const { quantity = 1 } = req.body;
 
-        console.log('Intentando agregar producto al carrito:', { cartId, pid, quantity });
+        console.log('Intentando agregar producto:', { pid, quantity });
 
         // Verificar si el producto existe
         const product = await Product.findById(pid);
@@ -90,14 +148,20 @@ router.post('/:cid/products/:pid', async (req, res) => {
             });
         }
 
-        // Buscar el carrito por cartId
-        let cart = await Cart.findOne({ cartId });
-        if (!cart) {
-            console.log('Carrito no encontrado:', cartId);
-            return res.status(404).json({ 
-                status: 'error', 
-                error: 'Carrito no encontrado' 
-            });
+        // Obtener el carrito activo más reciente
+        const lastCart = await Cart.findOne().sort({ cartId: -1 });
+        let cart;
+        
+        if (!lastCart || lastCart.completed) {
+            // Si no hay carritos o el último está completado, crear uno nuevo
+            console.log('Creando nuevo carrito activo...');
+            cart = new Cart({ completed: false });
+            await cart.save();
+            console.log('Nuevo carrito activo creado:', { cartId: cart.cartId, _id: cart._id });
+        } else {
+            // Usar el último carrito si no está completado
+            cart = lastCart;
+            console.log('Usando carrito activo existente:', { cartId: cart.cartId, _id: cart._id });
         }
 
         // Verificar si el producto ya está en el carrito
@@ -118,7 +182,7 @@ router.post('/:cid/products/:pid', async (req, res) => {
         console.log('Carrito guardado exitosamente');
         
         // Poblar los productos antes de enviar la respuesta
-        const updatedCart = await Cart.findOne({ cartId })
+        const updatedCart = await Cart.findOne({ cartId: cart.cartId })
             .populate({
                 path: 'products.product',
                 model: 'Product'
@@ -291,6 +355,57 @@ router.put('/:cid/complete', async (req, res) => {
     } catch (error) {
         console.error('Error al marcar carrito como completado:', error);
         res.status(500).json({ status: 'error', error: error.message });
+    }
+});
+
+// Finalizar compra
+router.post('/:cid/purchase', async (req, res) => {
+    try {
+        const cartId = parseInt(req.params.cid);
+        console.log('Finalizando compra del carrito:', cartId);
+
+        // Buscar el carrito actual
+        const cart = await Cart.findOne({ cartId, completed: false })
+            .populate('products.product');
+
+        if (!cart) {
+            return res.status(404).json({
+                status: 'error',
+                error: 'Carrito no encontrado o ya completado'
+            });
+        }
+
+        // Marcar el carrito actual como completado
+        cart.completed = true;
+        await cart.save();
+        console.log('Carrito completado:', cartId);
+
+        // Crear un nuevo carrito activo
+        const newCart = new Cart({ completed: false });
+        await newCart.save();
+        console.log('Nuevo carrito activo creado:', newCart.cartId);
+
+        // Actualizar el stock de los productos
+        for (const item of cart.products) {
+            const product = item.product;
+            product.stock -= item.quantity;
+            await product.save();
+        }
+
+        res.json({
+            status: 'success',
+            payload: {
+                message: 'Compra finalizada exitosamente',
+                completedCartId: cartId,
+                newCartId: newCart.cartId
+            }
+        });
+    } catch (error) {
+        console.error('Error al finalizar la compra:', error);
+        res.status(500).json({
+            status: 'error',
+            error: error.message
+        });
     }
 });
 

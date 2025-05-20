@@ -1,4 +1,3 @@
-
 const express = require("express");
 const { Server } = require("socket.io");
 const handlebars = require("express-handlebars");
@@ -6,25 +5,23 @@ const path = require("path");
 const connectDB = require('./src/config/db.config');
 
 const app = express();
-const httpServer = app.listen(3030, () => console.log("Servidor en puerto 3030"));
+const httpServer = app.listen(3030, () => console.log("Servidor iniciado en puerto 3030"));
 const io = new Server(httpServer);
 
-// Connect to MongoDB
+// Conexión a MongoDB
 const mongoose = require('mongoose');
-
 const uri = 'mongodb+srv://dbNano:Samba.0506@cluster0.vdboqay.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
 mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('✅ Conectado a MongoDB Atlas'))
-  .catch(err => console.error('❌ Error al conectar', err));
+  .then(() => console.log('Conexión a MongoDB establecida'))
+  .catch(err => console.error('Error de conexión a MongoDB:', err));
 
-
-// Static y json
+// Configuración de middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
-// Handlebars
+// Configuración de Handlebars
 app.engine("handlebars", handlebars.engine({
     allowProtoPropertiesByDefault: true,
     allowProtoMethodsByDefault: true,
@@ -52,7 +49,7 @@ app.engine("handlebars", handlebars.engine({
 app.set("view engine", "handlebars");
 app.set("views", path.join(__dirname, "src", "views"));
 
-// Routers
+// Configuración de rutas
 const viewsRouter = require("./src/routes/view.routes");
 app.use("/", viewsRouter);
 
@@ -62,9 +59,9 @@ const cartsRouter = require('./src/routes/carts.routes');
 app.use('/api/products', productsRouter);
 app.use('/api/carts', cartsRouter);
 
-// Socket.io
+// Configuración de Socket.io
 io.on("connection", (socket) => {
-  console.log("🔌 Cliente conectado");
+  console.log("Nueva conexión establecida");
 
   socket.on("nuevoProducto", async (prod) => {
     try {
@@ -74,7 +71,7 @@ io.on("connection", (socket) => {
       const productos = await Product.find();
       io.emit("productosActualizados", productos);
     } catch (error) {
-      console.error('Error adding product:', error);
+      console.error('Error al agregar producto:', error);
     }
   });
 
@@ -85,7 +82,7 @@ io.on("connection", (socket) => {
       const productos = await Product.find();
       io.emit("productosActualizados", productos);
     } catch (error) {
-      console.error('Error deleting product:', error);
+      console.error('Error al eliminar producto:', error);
     }
   });
 });

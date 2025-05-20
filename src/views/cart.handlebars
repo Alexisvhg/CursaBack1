@@ -118,23 +118,49 @@
 
     async function checkout() {
         try {
-            // Primero mostramos el mensaje de agradecimiento
-            alert('¡Gracias por tu compra!');
-            
-            // Marcar el carrito actual como completado
-            const completeResponse = await fetch(`/api/carts/{{payload.cartId}}/complete`, {
-                method: 'PUT'
+            const response = await fetch(`/api/carts/{{payload.cartId}}/purchase`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
 
-            if (!completeResponse.ok) {
-                throw new Error('Error al procesar la compra');
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                alert('¡Gracias por tu compra!');
+                // Redirigir al nuevo carrito activo
+                window.location.href = `/carts/${data.payload.newCartId}`;
+            } else {
+                throw new Error(data.error || 'Error al procesar la compra');
             }
-
-            // Redirigimos a la página de productos
-            window.location.href = '/products';
         } catch (error) {
             console.error('Error:', error);
             alert('Error al procesar la compra: ' + error.message);
+        }
+    }
+
+    async function finalizarCompra() {
+        try {
+            const response = await fetch(`/api/carts/{{payload.cartId}}/purchase`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                alert('¡Compra finalizada exitosamente!');
+                // Redirigir al nuevo carrito
+                window.location.href = `/carts/${data.payload.newCartId}`;
+            } else {
+                alert('Error al finalizar la compra: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al finalizar la compra');
         }
     }
 </script> 
